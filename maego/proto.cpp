@@ -2,7 +2,7 @@
 
 #define MY_MODULE  MODULE_APP
 extern char file_path[64];
-FILE * fp_file = NULL;
+FILE *fp_file = NULL;
 uint32_t count = 0;//记录图像数据包的数目
 uint32_t last_package_index = -1;
 uint32_t file_size = 0;
@@ -12,22 +12,22 @@ int index_number = 0;
 
 uint32_t image_size = 0;//每次接收到的图像大小
 uint8_t image_data[65536];//此处需要根据每次图像的大小初始化，接收图像数
-uint8_t *code_data=NULL;//已知
+uint8_t *code_data = NULL;//已知
 uint32_t code_file_length;//已知
 int temp_length = 0;
 
-int   tail_pack_size = 0;
+int tail_pack_size = 0;
 int total_pack_number = 0;
 //处理回包的函数接口，需要修改**************************************************************************************************
 const handler_v2_t cmd_handler_table_v2[] = {
-        { CMD_SET_COMMON , 0x30, cmd_common_start_python_file_transmission_ack },//python文件头发送状态查询
-        { CMD_SET_COMMON , 0x31, cmd_common_transmite_python_file_ack },//python文件数据发送状态查询
-        { CMD_SET_COMMON , 0x32, cmd_common_transmite_python_file_complete_ack },//python文件发送结束状态查询
-        { CMD_SET_COMMON , 0x33 , cmd_common_start_video_receive_ack },
-        { CMD_SET_COMMON , 0x34 , cmd_common_tranmite_video_data_ack },
-        { CMD_SET_SOC	 , 0x03 , cmd_stop_python_ack },//终止python程序运行的状态查询
-        { CMD_SET_SOC    , 0x04 , cmd_python_finished_status_ack },//python运行状态查询，python程序正常运行结束后会发送该命令
-        { 0 , 0 , NULL },
+        {CMD_SET_COMMON, 0x30, cmd_common_start_python_file_transmission_ack},//python文件头发送状态查询
+        {CMD_SET_COMMON, 0x31, cmd_common_transmite_python_file_ack},//python文件数据发送状态查询
+        {CMD_SET_COMMON, 0x32, cmd_common_transmite_python_file_complete_ack},//python文件发送结束状态查询
+        {CMD_SET_COMMON, 0x33, cmd_common_start_video_receive_ack},
+        {CMD_SET_COMMON, 0x34, cmd_common_tranmite_video_data_ack},
+        {CMD_SET_SOC,    0x03, cmd_stop_python_ack},//终止python程序运行的状态查询
+        {CMD_SET_SOC,    0x04, cmd_python_finished_status_ack},//python运行状态查询，python程序正常运行结束后会发送该命令
+        {0,              0, NULL},
 };
 const unsigned char CRC8_TAB[256] =
         {
@@ -51,46 +51,41 @@ const unsigned char CRC8_TAB[256] =
 
 
 // caculate crc value by lookup table
-unsigned char get_crc8_check_sum(unsigned char *msg,unsigned int cnt,unsigned char crc8)
-{
+unsigned char get_crc8_check_sum(unsigned char *msg, unsigned int cnt, unsigned char crc8) {
     unsigned char idx;
 
-    while (cnt--)
-    {
-        idx = crc8^(*msg++);
-        crc8  = CRC8_TAB[idx];
+    while (cnt--) {
+        idx = crc8 ^ (*msg++);
+        crc8 = CRC8_TAB[idx];
     }
 
-    return(crc8);
+    return (crc8);
 }
 
 /*
  * 整条信息的最后一个字节是CRC8校验，判断在最后这个字节是不是对的
 */
-unsigned int verify_crc8_check_sum(unsigned char *msg, unsigned int length)
-{
+unsigned int verify_crc8_check_sum(unsigned char *msg, unsigned int length) {
     unsigned char expected = 0;
 
     if ((msg == NULL) || (length <= 2)) return 0;
 
-    expected = get_crc8_check_sum (msg, length-1, CRC8_INIT);
+    expected = get_crc8_check_sum(msg, length - 1, CRC8_INIT);
 
-    return ( expected == msg[length-1] );
+    return (expected == msg[length - 1]);
 }
 
 /*
  * 整条信息的最后一个字节是CRC8校验，算好后插在最后这个字节
 */
-void append_crc8_check_sum(unsigned char *msg, unsigned int length)
-{
+void append_crc8_check_sum(unsigned char *msg, unsigned int length) {
     if ((msg == NULL) || (length <= 2)) return;
 
-    msg[length-1] = get_crc8_check_sum (msg, length-1, CRC8_INIT);
+    msg[length - 1] = get_crc8_check_sum(msg, length - 1, CRC8_INIT);
 }
 
-void test(uint8_t *data)
-{
-    cmd_file_data_req_t*p_ack = (cmd_file_data_req_t*)(data + HEADER_LEN);
+void test(uint8_t *data) {
+    cmd_file_data_req_t *p_ack = (cmd_file_data_req_t *) (data + HEADER_LEN);
     printf("code=%s", p_ack->data);
 
 }
@@ -136,57 +131,52 @@ const unsigned short wCRC_Table[256] = {
 **  Input:        Data to check,Stream length, initialized checksum
 **  Output:       CRC checksum
 */
-unsigned short get_crc16_check_sum( unsigned char *msg, unsigned int length, unsigned short crc16 )
-{
+unsigned short get_crc16_check_sum(unsigned char *msg, unsigned int length, unsigned short crc16) {
     unsigned char chData = 0;
-    if( msg == NULL ) {
+    if (msg == NULL) {
         return 0xFFFF;
     }
 
-    while( length-- ) {
+    while (length--) {
         chData = *msg++;
-        crc16 = (crc16 >> 8)  ^ wCRC_Table[(crc16 ^ (unsigned short)(chData)) & 0x00ff];
+        crc16 = (crc16 >> 8) ^ wCRC_Table[(crc16 ^ (unsigned short) (chData)) & 0x00ff];
     }
 
     return crc16;
 }
 
-unsigned int verify_crc16_check_sum( unsigned char *msg, unsigned int length )
-{
+unsigned int verify_crc16_check_sum(unsigned char *msg, unsigned int length) {
     unsigned short expected = 0;
 
-    if( ( msg == NULL ) || ( length <= 2 ) ) {
+    if ((msg == NULL) || (length <= 2)) {
         return 0xFFFF;
     }
-    expected = get_crc16_check_sum( msg, length - 2, CRC16_INIT );
+    expected = get_crc16_check_sum(msg, length - 2, CRC16_INIT);
 
-    return ( ( expected & 0xff ) == msg[length - 2] ) && ( ( ( expected >> 8 ) & 0xff ) == msg[length - 1] );
+    return ((expected & 0xff) == msg[length - 2]) && (((expected >> 8) & 0xff) == msg[length - 1]);
 }
 
 
-void append_crc16_check_sum( unsigned char *msg, unsigned int length )
-{
+void append_crc16_check_sum(unsigned char *msg, unsigned int length) {
     unsigned short data = 0;
 
-    if ((msg == NULL) || (length <= 2))
-    {
+    if ((msg == NULL) || (length <= 2)) {
         return;
     }
-    data = get_crc16_check_sum (msg, length-2, CRC16_INIT );
+    data = get_crc16_check_sum(msg, length - 2, CRC16_INIT);
 
-    msg[length-2] = ( unsigned char )( data & 0x00ff );
-    msg[length-1] = ( unsigned char )( ( data >> 8 ) & 0x00ff );
+    msg[length - 2] = (unsigned char) (data & 0x00ff);
+    msg[length - 1] = (unsigned char) ((data >> 8) & 0x00ff);
 }
 
 
 /*********************************************
  * 解码V2协议
  *********************************************/
-bool v2_decoder( v2_decoder_object_t *obj, uint8_t data )
-{
-    switch( obj->step ) {
+bool v2_decoder(v2_decoder_object_t *obj, uint8_t data) {
+    switch (obj->step) {
         case 0:
-            if( data == V2_SOF ) {
+            if (data == V2_SOF) {
                 obj->idx = 0;
                 obj->p_data[obj->idx++] = data;
                 obj->step = 1;
@@ -201,9 +191,9 @@ bool v2_decoder( v2_decoder_object_t *obj, uint8_t data )
             break;
         case 2:
             printf("step 2..............\n");
-            obj->len |= ( ( data & 0x0f ) << 8 );
-            obj->ver = ( data >> 4 );
-            if( obj->len > obj->max || obj->ver != 0x02) {
+            obj->len |= ((data & 0x0f) << 8);
+            obj->ver = (data >> 4);
+            if (obj->len > obj->max || obj->ver != 0x02) {
                 obj->step = 0;
                 printf("step 2.....a.........%d\n", obj->ver);
             } else {
@@ -215,7 +205,7 @@ bool v2_decoder( v2_decoder_object_t *obj, uint8_t data )
         case 3:
             printf("step 3..............\n");
             obj->p_data[obj->idx++] = data;
-            if( verify_crc8_check_sum( obj->p_data, 4 ) ) {
+            if (verify_crc8_check_sum(obj->p_data, 4)) {
                 obj->step = 4;
             } else {
                 obj->step = 0;
@@ -223,16 +213,16 @@ bool v2_decoder( v2_decoder_object_t *obj, uint8_t data )
             break;
         case 4:
             printf("step 4..............\n");
-            if( obj->idx < obj->len ) {
+            if (obj->idx < obj->len) {
                 obj->p_data[obj->idx++] = data;
             }
-            if( obj->idx == obj->len ) {
+            if (obj->idx == obj->len) {
                 obj->step = 0;
-                if( verify_crc16_check_sum( obj->p_data, obj->len ) ) {
+                if (verify_crc16_check_sum(obj->p_data, obj->len)) {
                     printf("step 4.........123.....\n");
-                    return 1 ;
+                    return 1;
                 }
-            }else if( obj->idx > obj->len ){
+            } else if (obj->idx > obj->len) {
                 obj->step = 0;
             }
             break;
@@ -246,9 +236,8 @@ bool v2_decoder( v2_decoder_object_t *obj, uint8_t data )
  *
  * 初始化回包的格式
  *********************************************/
-void v2_protocol_init_ack_and_send( uint8_t *p_buf , uint16_t data_len )
-{
-    cmd_header_v2_t *p_cmd = ( cmd_header_v2_t * )p_buf;
+void v2_protocol_init_ack_and_send(uint8_t *p_buf, uint16_t data_len) {
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) p_buf;
 
     uint8_t tmp0 = p_cmd->tx.tx_index;
     uint8_t tmp1 = p_cmd->tx.tx_id;
@@ -263,16 +252,16 @@ void v2_protocol_init_ack_and_send( uint8_t *p_buf , uint16_t data_len )
 
     p_cmd->v2.length = MINIMUM_LEN + data_len;
 
-    v2_protocol_send( p_buf );
+    v2_protocol_send(p_buf);
 }
 
 
 /*********************************************
  * 初始化请求包格式
  *********************************************/
-void v2_protocol_init_req_and_send( uint8_t rx , uint8_t set , uint8_t id ,uint8_t need_ack , uint8_t *p_buf , uint16_t data_len )
-{
-    cmd_header_v2_t *p_cmd = ( cmd_header_v2_t * )p_buf;
+void v2_protocol_init_req_and_send(uint8_t rx, uint8_t set, uint8_t id, uint8_t need_ack, uint8_t *p_buf,
+                                   uint16_t data_len) {
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) p_buf;
     static uint16_t seq_num = 0;
 
     p_cmd->sof = V2_SOF;
@@ -290,25 +279,21 @@ void v2_protocol_init_req_and_send( uint8_t rx , uint8_t set , uint8_t id ,uint8
     //printf("set=%d\n", set);
     p_cmd->seqnum = seq_num++;
     p_cmd->set = set;
-    p_cmd->id  = id;
+    p_cmd->id = id;
     p_cmd->v2.length = MINIMUM_LEN + data_len;
 
-    v2_protocol_send( p_buf );
+    v2_protocol_send(p_buf);
 
 }
-
-
-
 
 
 /*********************************************
 * 根据接收者自动选择发送端口并发送
  *********************************************/
-void v2_protocol_send(uint8_t *data)
-{
-    cmd_header_v2_t* p_cmd = (cmd_header_v2_t*)data;
-    append_crc8_check_sum( data , 4 );
-    append_crc16_check_sum( data , p_cmd->v2.length );
+void v2_protocol_send(uint8_t *data) {
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) data;
+    append_crc8_check_sum(data, 4);
+    append_crc16_check_sum(data, p_cmd->v2.length);
 
 }
 
@@ -316,23 +301,22 @@ void v2_protocol_send(uint8_t *data)
 /*********************************************
  * 主循环调用该函数进行解码
  *********************************************/
-void v2_protocol_process(v2_decoder_object_t* obj,uint8_t data)
-{
+void v2_protocol_process(v2_decoder_object_t *obj, uint8_t data) {
     uint8_t ii;
-    cmd_header_v2_t* p_cmd;
+    cmd_header_v2_t *p_cmd;
 
-    if( v2_decoder(obj, data) == 1){
+    if (v2_decoder(obj, data) == 1) {
 
-        p_cmd = (cmd_header_v2_t*)obj->p_data;
-        if( p_cmd->rx.rx_id != MY_MODULE && p_cmd->rx.rx_id != MODULE_DEFAULT ){
+        p_cmd = (cmd_header_v2_t *) obj->p_data;
+        if (p_cmd->rx.rx_id != MY_MODULE && p_cmd->rx.rx_id != MODULE_DEFAULT) {
             // v2_protocol_send(obj->p_data);
             test(obj->p_data);
             //printf("***********************parse successqqq*********************%d***%d*\n", p_cmd->id, p_cmd->set);
 
-        }else{
+        } else {
             printf("***********************parse success*********************%d***%d*\n", p_cmd->id, p_cmd->set);
-            for(ii=0 ; cmd_handler_table_v2[ii].handler != NULL ; ii++){
-                if( p_cmd->id == cmd_handler_table_v2[ii].id && p_cmd->set == cmd_handler_table_v2[ii].set ){
+            for (ii = 0; cmd_handler_table_v2[ii].handler != NULL; ii++) {
+                if (p_cmd->id == cmd_handler_table_v2[ii].id && p_cmd->set == cmd_handler_table_v2[ii].set) {
 
                     cmd_handler_table_v2[ii].handler(obj->p_data);
                     break;
@@ -343,28 +327,21 @@ void v2_protocol_process(v2_decoder_object_t* obj,uint8_t data)
 }
 
 uint32_t pre_package_length = 0;//记录前一个图像数据包的长度
-bool image_data_receive(uint8_t*image_data,uint8_t*data,uint32_t pack_length)
-{
+bool image_data_receive(uint8_t *image_data, uint8_t *data, uint32_t pack_length) {
     bool flag = false;
 
 
-    memcpy(image_data + pre_package_length*count, data,pack_length);//将每次接收到的图像数据包填到image_data中，直到填满完整图像
+    memcpy(image_data + pre_package_length * count, data, pack_length);//将每次接收到的图像数据包填到image_data中，直到填满完整图像
     count++;//记录图像数据传输帧，每次传输1024字节
     bytes_write += pack_length;
     pre_package_length = pack_length;
-    if (bytes_write == image_size)
-    {
+    if (bytes_write == image_size) {
         //一帧完整的图像接收完毕
         flag = true;
         bytes_write = 0;
         count = 0;
     }
     return flag;
-
-
-
-
-
 
 
 }
@@ -374,26 +351,26 @@ bool image_data_receive(uint8_t*image_data,uint8_t*data,uint32_t pack_length)
  * des: start video receive
  *********************************************/
 
-void cmd_common_start_video_receive_ack( uint8_t *p_buf )//接收图像头数据,目的为了获取图像的大小image_size
+void cmd_common_start_video_receive_ack(uint8_t *p_buf)//接收图像头数据,目的为了获取图像的大小image_size
 {
     uint8_t result = 0;
-    cmd_header_v2_t *p_cmd = ( cmd_header_v2_t * )p_buf;
-    cmd_start_video_transmission_req_t *p_req = (cmd_start_video_transmission_req_t * )( p_buf + HEADER_LEN );
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) p_buf;
+    cmd_start_video_transmission_req_t *p_req = (cmd_start_video_transmission_req_t *) (p_buf + HEADER_LEN);
 
     //printf("cmd_common_start_file_transmission_ack received file size %d  %x %x %x %x\n", p_req->file_size, *(p_buf + HEADER_LEN+1), *(p_buf + HEADER_LEN+2), *(p_buf + HEADER_LEN+3), *(p_buf + HEADER_LEN+4));
 
-    if( p_req->encrypt != 0 ) return;
+    if (p_req->encrypt != 0) return;
 
-    if( p_req->image_size > MAX_FILE_SIZE ){
+    if (p_req->image_size > MAX_FILE_SIZE) {
         result = 0xF7;  //文件过大
-    }else{
+    } else {
         image_size = p_req->image_size;
         printf("cmd_common_start_video_receive_ack received file name lenght %d \n", p_req->image_name_length);
 
         char file_name[32] = {0};
         memcpy(file_name, p_buf + HEADER_LEN + sizeof(cmd_start_file_trasmission_req_t), p_req->image_name_length);
 
-        printf("filename = %s,len = %d\n",file_name, p_req->image_name_length);
+        printf("filename = %s,len = %d\n", file_name, p_req->image_name_length);
 
     }
 
@@ -404,16 +381,15 @@ void cmd_common_start_video_receive_ack( uint8_t *p_buf )//接收图像头数据
  * id : 0x34
  * des: rx video data
  *********************************************/
-void cmd_common_tranmite_video_data_ack( uint8_t *p_buf )
-{
+void cmd_common_tranmite_video_data_ack(uint8_t *p_buf) {
     uint8_t result = 0;
-    int32_t temp_index ;
+    int32_t temp_index;
 
-    cmd_header_v2_t *p_cmd = ( cmd_header_v2_t * )p_buf;
-    cmd_transmit_video_data_req_t *p_req = (cmd_transmit_video_data_req_t * )( p_buf + HEADER_LEN );
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) p_buf;
+    cmd_transmit_video_data_req_t *p_req = (cmd_transmit_video_data_req_t *) (p_buf + HEADER_LEN);
 
     //printf("cmd_common_tranmite_video_data_ack received index %d  length:%d\n", p_req->package_index, p_req->package_length);
-    if( p_req->encrypt != 0 ) return;
+    if (p_req->encrypt != 0) return;
     //memcpy(video_data+pre_package_length*temp_index,p_req->data,p_req->package_length);
     image_data_receive(image_data, p_req->data, p_req->package_length);
 }
@@ -422,36 +398,38 @@ void cmd_common_tranmite_video_data_ack( uint8_t *p_buf )
  * id : 0x30
  * des: start python file transmission
  *********************************************/
-void cmd_common_start_python_file_transmission_req( char *file_name , uint32_t file_size)//发送文件名和文件大小
+void cmd_common_start_python_file_transmission_req(char *file_name, uint32_t file_size)//发送文件名和文件大小
 {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_start_file_trasmission_req_t)];
-    cmd_start_file_trasmission_req_t *p_push = (cmd_start_file_trasmission_req_t * )(req_buf + HEADER_LEN);
+    cmd_start_file_trasmission_req_t *p_push = (cmd_start_file_trasmission_req_t *) (req_buf + HEADER_LEN);
     //设置信息
     p_push->encrypt = 0;
     p_push->file_size = file_size;
-    p_push->filename_length = strlen((char*)file_name);
-    memcpy(p_push->filename, file_name, strlen((char*)file_name));
+    p_push->filename_length = strlen((char *) file_name);
+    memcpy(p_push->filename, file_name, strlen((char *) file_name));
     //printf("p_push->filename=%s\n", p_push->filename);
 
-    v2_protocol_init_req_and_send(MODULE_SOC , CMD_SET_COMMON , 0x30 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_start_file_trasmission_req_t));
+    v2_protocol_init_req_and_send(MODULE_SOC, CMD_SET_COMMON, 0x30, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_start_file_trasmission_req_t));
 }
 
 /*********************************************
  * id : 0x31
  * des: transmit python file  data
  *********************************************/
-void cmd_common_transmite_python_file_req( uint8_t *p_buf , uint32_t index, uint16_t length,uint32_t receive_length)//发送python文件数据
+void cmd_common_transmite_python_file_req(uint8_t *p_buf, uint32_t index, uint16_t length,
+                                          uint32_t receive_length)//发送python文件数据
 {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_file_data_req_t)];
-    cmd_file_data_req_t *p_push = (cmd_file_data_req_t *)(req_buf + HEADER_LEN);
+    cmd_file_data_req_t *p_push = (cmd_file_data_req_t *) (req_buf + HEADER_LEN);
     //设置信息
     p_push->encrypt = 0;
     p_push->package_index = index;
     p_push->package_length = length;
-    memcpy(p_push->data, code_data + index*receive_length, length);
-    v2_protocol_init_req_and_send(MODULE_SOC , CMD_SET_COMMON , 0x31 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_file_data_req_t));
+    memcpy(p_push->data, code_data + index * receive_length, length);
+    v2_protocol_init_req_and_send(MODULE_SOC, CMD_SET_COMMON, 0x31, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_file_data_req_t));
     printf("sizeof(cmd_file_data_req_t)=%d\n", sizeof(cmd_file_data_req_t));
-
 
 
 }
@@ -460,49 +438,45 @@ void cmd_common_transmite_python_file_req( uint8_t *p_buf , uint32_t index, uint
  * id : 0x32
  * des: transmit python file completed
  *********************************************/
-void cmd_common_transmite_python_file_complete_req(  )//发送python文件数据结束命令，md5可以先不用管，直接用一个16字节长度的16进制序列代替例
+void cmd_common_transmite_python_file_complete_req()//发送python文件数据结束命令，md5可以先不用管，直接用一个16字节长度的16进制序列代替例
 //[94, 182, 59, 187, 224, 30, 238, 208, 147, 203, 34, 187, 143, 90, 205, 195]
 {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_finish_file_transmission_req_t)];
-    cmd_finish_file_transmission_req_t *p_push = ( cmd_finish_file_transmission_req_t * )(req_buf + HEADER_LEN);
-    unsigned char temp_md5[16]={4, 182, 59, 187, 224, 30, 238, 208, 147, 203, 34, 187, 143, 90, 205, 195 };
+    cmd_finish_file_transmission_req_t *p_push = (cmd_finish_file_transmission_req_t *) (req_buf + HEADER_LEN);
+    unsigned char temp_md5[16] = {4, 182, 59, 187, 224, 30, 238, 208, 147, 203, 34, 187, 143, 90, 205, 195};
     //设置信息
     p_push->encrypt = 0;
     memcpy(p_push->md5, temp_md5, 16);
-    v2_protocol_init_req_and_send(MODULE_SOC , CMD_SET_COMMON , 0x32 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_finish_file_transmission_req_t));
+    v2_protocol_init_req_and_send(MODULE_SOC, CMD_SET_COMMON, 0x32, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_finish_file_transmission_req_t));
 }
 
 
-void cmd_common_start_python_file_transmission_ack(uint8_t*p_buf)
-{
-    cmd_start_file_trasmission_ack_t*p_ack = (cmd_start_file_trasmission_ack_t*)(p_buf + HEADER_LEN);
+void cmd_common_start_python_file_transmission_ack(uint8_t *p_buf) {
+    cmd_start_file_trasmission_ack_t *p_ack = (cmd_start_file_trasmission_ack_t *) (p_buf + HEADER_LEN);
     //
     p_ack->package_size;//每次需要传输的字节数
     p_ack->result;//接收到的回包的状态值，非零为失败
-    if (p_ack->result != 0)
-    {
-        index_number= 0;
+    if (p_ack->result != 0) {
+        index_number = 0;
         return;
     }
 
     //开始传输第一帧
-    if (p_ack->package_size <= 0)
-    {
+    if (p_ack->package_size <= 0) {
         return;
     }
     temp_length = p_ack->package_size;//每次以此长度发送数据
-    tail_pack_size = code_file_length%temp_length;
+    tail_pack_size = code_file_length % temp_length;
     if (tail_pack_size == 0)
         total_pack_number = code_file_length / temp_length;
     else
         total_pack_number = code_file_length / temp_length + 1;
 
-    if (total_pack_number == 1)
-    {
+    if (total_pack_number == 1) {
         cmd_common_transmite_python_file_req(code_data, index_number, code_file_length, code_file_length);
 
-    }
-    else {
+    } else {
         // Log.e("MyLog","fuck.............1..............");
         cmd_common_transmite_python_file_req(code_data, index_number, temp_length, temp_length);
         //ndFileData(index_number, file_data, temp_length, temp_length);
@@ -515,16 +489,15 @@ void cmd_common_start_python_file_transmission_ack(uint8_t*p_buf)
 
 
 }
-void cmd_common_transmite_python_file_ack(uint8_t*p_buf)
-{
-    cmd_file_data_ack_t*p_ack = (cmd_file_data_ack_t*)(p_buf + HEADER_LEN);
+
+void cmd_common_transmite_python_file_ack(uint8_t *p_buf) {
+    cmd_file_data_ack_t *p_ack = (cmd_file_data_ack_t *) (p_buf + HEADER_LEN);
     //
     p_ack->package_index;//接收到的回包的索引
     p_ack->result;//同上
     if (!p_ack->result) return;
 
-    if (index_number + 1 == total_pack_number)
-    {
+    if (index_number + 1 == total_pack_number) {
 
         //python文件传输完成命令
 
@@ -534,48 +507,41 @@ void cmd_common_transmite_python_file_ack(uint8_t*p_buf)
 
     }
     index_number++;
-    if (tail_pack_size == 0)
-    {
+    if (tail_pack_size == 0) {
         //发送数据
 //sendFileData(index_number, file_data, temp_length, temp_length);
 
         cmd_common_transmite_python_file_req(code_data, index_number, temp_length, temp_length);
 
-    }
-    else
-    {
-        if (index_number == total_pack_number - 1)
-        {
+    } else {
+        if (index_number == total_pack_number - 1) {
             // Log.e("MyLog","fuck..........2................."+"length= "+temp_length);
 //endFileData(index_number, file_data, tail_pack_size, temp_length);
             cmd_common_transmite_python_file_req(code_data, index_number, tail_pack_size, temp_length);
 
 
-        }
-        else
-        {
+        } else {
             //sendFileData(index_number, file_data, temp_length, temp_length);
             cmd_common_transmite_python_file_req(code_data, index_number, temp_length, temp_length);
         }
     }
 
 
-
 }
-void cmd_common_transmite_python_file_complete_ack(uint8_t*p_buf)
-{
-    cmd_finish_file_transmission_ack_t*p_ack = (cmd_finish_file_transmission_ack_t*)(p_buf + HEADER_LEN);
+
+void cmd_common_transmite_python_file_complete_ack(uint8_t *p_buf) {
+    cmd_finish_file_transmission_ack_t *p_ack = (cmd_finish_file_transmission_ack_t *) (p_buf + HEADER_LEN);
     //
     p_ack->result;//同上
-    if (p_ack->result != 0)
-    {
+    if (p_ack->result != 0) {
         return;
     }
     index_number = 0;
     printf("receive transmite_python_file_complete cmd\n");
 
 }
-void sendPythonCode(uint8_t*code, int len)//code为python文件数据字节，len为python文件数据的长度
+
+void sendPythonCode(uint8_t *code, int len)//code为python文件数据字节，len为python文件数据的长度
 {
     code_data = code;
     cmd_common_start_python_file_transmission_req("maego.py", len);//发送python文件开始传输命令
@@ -586,36 +552,33 @@ void sendPythonCode(uint8_t*code, int len)//code为python文件数据字节，le
  * id : 0x03
  * des: stop python code   send
  *********************************************/
-void  cmd_stop_python_req()
-{
+void cmd_stop_python_req() {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_stop_python_req_t)];
     req_buf[HEADER_LEN] = 0x01;
-    v2_protocol_init_req_and_send(MODULE_SOC , CMD_SET_COMMON , 0x03 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_stop_python_req_t));
+    v2_protocol_init_req_and_send(MODULE_SOC, CMD_SET_COMMON, 0x03, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_stop_python_req_t));
 }
 
 /*********************************************
 * id : 0x03
 * des: push python code stop status to pc or app
 *********************************************/
-void  cmd_stop_python_ack(uint8_t *p_buf)
-{
+void cmd_stop_python_ack(uint8_t *p_buf) {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_stop_python_ack_t)];
-    cmd_stop_python_ack_t *p_ack = ( cmd_stop_python_ack_t * )( req_buf + HEADER_LEN );
+    cmd_stop_python_ack_t *p_ack = (cmd_stop_python_ack_t *) (req_buf + HEADER_LEN);
     printf("cmd_push_Stop_python__status!\n");
 }
-
 
 
 /*********************************************
  * id : 0x04
  * des: push python code finished status to pc or app
  *********************************************/
-void  cmd_python_finished_status_ack(uint8_t *p_buf)
-{
+void cmd_python_finished_status_ack(uint8_t *p_buf) {
     //uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_python_finished_req_t)];
     ///=----------------------------
 
-    cmd_python_finished_ack_t *p_ack = ( cmd_python_finished_ack_t * )( p_buf + HEADER_LEN );
+    cmd_python_finished_ack_t *p_ack = (cmd_python_finished_ack_t *) (p_buf + HEADER_LEN);
 
     printf("cmd_push_python_finished_status  ack received!\n");
 }
@@ -627,15 +590,15 @@ void  cmd_python_finished_status_ack(uint8_t *p_buf)
  *     @speed  速度    m/s
  *     @theta  角速度  rad/s
  *********************************************/
-void  cmd_mcu_set_speed_req(float speed , float theta)
-{
+void cmd_mcu_set_speed_req(float speed, float theta) {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_set_speed_req_t)];
-    cmd_set_speed_req_t *p_req = (cmd_set_speed_req_t *)(req_buf + HEADER_LEN);
+    cmd_set_speed_req_t *p_req = (cmd_set_speed_req_t *) (req_buf + HEADER_LEN);
 
     p_req->speed = speed;
     p_req->theta = theta;
 
-    v2_protocol_init_req_and_send(MODULE_MCU , CMD_SET_MCU , 0x04 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_set_speed_req_t));
+    v2_protocol_init_req_and_send(MODULE_MCU, CMD_SET_MCU, 0x04, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_set_speed_req_t));
 }
 
 
@@ -646,30 +609,30 @@ void  cmd_mcu_set_speed_req(float speed , float theta)
  * 如果值大于0表示顺时针旋转转，
  * 如果小于0表示逆时针旋转
 *********************************************/
-void  cmd_mcu_set_fly_wheel_req(uint8_t speed)//设为95,不需要接收返回状态7002发
+void cmd_mcu_set_fly_wheel_req(uint8_t speed)//设为95,不需要接收返回状态7002发
 {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_set_fly_wheel_req_t)];
-    cmd_set_fly_wheel_req_t *p_req = (cmd_set_fly_wheel_req_t *)(req_buf + HEADER_LEN);
+    cmd_set_fly_wheel_req_t *p_req = (cmd_set_fly_wheel_req_t *) (req_buf + HEADER_LEN);
 
     p_req->speed = speed;
 
-    v2_protocol_init_req_and_send(MODULE_MCU , CMD_SET_MCU , 0x05 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_set_speed_req_t));
+    v2_protocol_init_req_and_send(MODULE_MCU, CMD_SET_MCU, 0x05, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_set_speed_req_t));
 }
 
-void  cmd_mcu_set_fly_wheel_ack(uint8_t *p_buf )
-{
+void cmd_mcu_set_fly_wheel_ack(uint8_t *p_buf) {
     uint8_t result = 0;
-    cmd_header_v2_t *p_cmd = ( cmd_header_v2_t * )p_buf;
-    cmd_set_fly_wheel_req_t *p_req = ( cmd_set_fly_wheel_req_t * )( p_buf + HEADER_LEN );
-    cmd_set_fly_wheel_ack_t *p_ack = ( cmd_set_fly_wheel_ack_t * )( p_buf + HEADER_LEN );;
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) p_buf;
+    cmd_set_fly_wheel_req_t *p_req = (cmd_set_fly_wheel_req_t *) (p_buf + HEADER_LEN);
+    cmd_set_fly_wheel_ack_t *p_ack = (cmd_set_fly_wheel_ack_t *) (p_buf + HEADER_LEN);;
 
     //do sth
     p_req->speed = p_req->speed;
 
-    if( p_cmd->attri.cmd_ack_type != ACK_TYPE_NONE ) {
+    if (p_cmd->attri.cmd_ack_type != ACK_TYPE_NONE) {
 
         p_ack->result = result;
-        v2_protocol_init_ack_and_send(p_buf,sizeof( cmd_set_fly_wheel_ack_t ));
+        v2_protocol_init_ack_and_send(p_buf, sizeof(cmd_set_fly_wheel_ack_t));
     }
 }
 
@@ -680,30 +643,30 @@ void  cmd_mcu_set_fly_wheel_ack(uint8_t *p_buf )
  *0x08：停止
  *0x0F：释放
 *********************************************/
-void  cmd_mcu_set_brake_req(uint8_t cmd)//设为0x00，不需要接收返回状态7002发
+void cmd_mcu_set_brake_req(uint8_t cmd)//设为0x00，不需要接收返回状态7002发
 {
     uint8_t req_buf[MINIMUM_LEN + sizeof(cmd_set_screw_req_t)];
-    cmd_set_screw_req_t *p_req = (cmd_set_screw_req_t *)(req_buf + HEADER_LEN);
+    cmd_set_screw_req_t *p_req = (cmd_set_screw_req_t *) (req_buf + HEADER_LEN);
 
     p_req->command = cmd;
 
-    v2_protocol_init_req_and_send(MODULE_MCU , CMD_SET_MCU , 0x06 , ACK_TYPE_IMMEDIATE , req_buf , sizeof(cmd_set_screw_req_t));
+    v2_protocol_init_req_and_send(MODULE_MCU, CMD_SET_MCU, 0x06, ACK_TYPE_IMMEDIATE, req_buf,
+                                  sizeof(cmd_set_screw_req_t));
 }
 
-void  cmd_mcu_set_brake_ack(uint8_t *p_buf )
-{
+void cmd_mcu_set_brake_ack(uint8_t *p_buf) {
     uint8_t result = 0;
-    cmd_header_v2_t *p_cmd = ( cmd_header_v2_t * )p_buf;
-    cmd_set_screw_req_t *p_req = ( cmd_set_screw_req_t * )( p_buf + HEADER_LEN );
-    cmd_set_screw_ack_t *p_ack = ( cmd_set_screw_ack_t * )( p_buf + HEADER_LEN );;
+    cmd_header_v2_t *p_cmd = (cmd_header_v2_t *) p_buf;
+    cmd_set_screw_req_t *p_req = (cmd_set_screw_req_t *) (p_buf + HEADER_LEN);
+    cmd_set_screw_ack_t *p_ack = (cmd_set_screw_ack_t *) (p_buf + HEADER_LEN);;
 
     //do sth
     printf("get ack of cmd_mcu_set_brake_req\n");
 
-    if( p_cmd->attri.cmd_ack_type != ACK_TYPE_NONE ) {
+    if (p_cmd->attri.cmd_ack_type != ACK_TYPE_NONE) {
 
         p_ack->result = result;
-        v2_protocol_init_ack_and_send(p_buf,sizeof( cmd_set_screw_ack_t ));
+        v2_protocol_init_ack_and_send(p_buf, sizeof(cmd_set_screw_ack_t));
     } else {
     }
 }
